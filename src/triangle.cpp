@@ -51,6 +51,8 @@ void TriangleApplication::initVulkan()
 {
     enumExtensions();
     createInstance();
+    pickPhysicalDevice();
+    createLogicalDevice();
 }
 
 void TriangleApplication::enumExtensions() 
@@ -114,7 +116,6 @@ bool TriangleApplication::checkValidationLayerSupport()
     vkEnumerateInstanceLayerProperties(&layer_count, nullptr);
     std::vector<VkLayerProperties> available_layers{layer_count};
     vkEnumerateInstanceLayerProperties(&layer_count, available_layers.data());
-
     for (const auto& layer_name : validation_layers) {
         bool layer_found = false;
         for (const auto& layer_properties : available_layers) {
@@ -129,4 +130,80 @@ bool TriangleApplication::checkValidationLayerSupport()
     }
 
     return true;
+}
+
+void TriangleApplication::pickPhysicalDevice()
+{
+    uint32_t count = 0;
+    vkEnumeratePhysicalDevices(instance_, &count, nullptr);
+    if (count == 0) {
+        throw std::runtime_error("failed to find GPUs with Vulkan support!");
+    }
+    std::vector<VkPhysicalDevice> devices{count};
+    vkEnumeratePhysicalDevices(instance_, &count, devices.data());
+    for (const auto& device: devices) {
+        if (isSuitableDevice(device)) {
+            physical_device_ = device;
+            break;
+        }
+    }
+    if (physical_device_ == VK_NULL_HANDLE) {
+        throw std::runtime_error("failed to find a suitable GPU!");
+    }
+}
+
+bool TriangleApplication::isSuitableDevice(VkPhysicalDevice physical_device)
+{
+    VkPhysicalDeviceProperties device_props;
+    vkGetPhysicalDeviceProperties(physical_device, &device_props);
+
+    VkPhysicalDeviceFeatures device_feats;
+    vkGetPhysicalDeviceFeatures(physical_device, &device_feats);
+    auto indices = findQueueFamilies(physical_device);
+    return indices.isComplete();
+}
+
+QueueFamilyIndices TriangleApplication::findQueueFamilies(VkPhysicalDevice device)
+{
+    QueueFamilyIndices indices{};
+    uint32_t count = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &count, nullptr);
+    std::vector<VkQueueFamilyProperties> family_props{count};
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &count, family_props.data());
+    int i = 0;
+    for (const auto& prop: family_props) {
+        if (prop.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            indices.graphics_family = i;
+        }
+        if (indices.isComplete()) {
+            break;
+        }
+        i++;
+    }
+    return indices;
+}
+
+void TriangleApplication::createLogicalDevice() 
+{
+    auto indices = findQueueFamilies(physical_device_);
+    VkDeviceQueueCreateInfo queue_create_info{};
+    queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queue_create_info.queueCount = 1;
+    queue_create_info.queueFamilyIndex = indices.graphics_family.value();
+    float queue_prioriy = 1.0f;
+    queue_create_info.pQueuePriorities = &queue_prioriy;
+
+    VkPhysicalDeviceFeatures feats{};
+
+    VkDeviceCreateInfo device_create_info{};
+    device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    device_create_info.pQueueCreateInfos = &queue_create_info;
+    device_create_info.queueCreateInfoCount = 1;
+    device_create_info.pEnabledFeatures = &feats;
+    device_create_info.enabledExtensionCount = 0;
+
+    VkResult res = vkCreateDevice(physical_device_, &device_create_info, nullptr, &device_);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create device, error: " + std::to_string(res));
+    }
 }
