@@ -6,13 +6,15 @@
 #include <iostream>
 #include <stdexcept>
 #include <optional>
+#include <string>
 
 struct QueueFamilyIndices
 {
     std::optional<uint32_t> graphics_family;
+    std::optional<uint32_t> present_family;
 
     bool isComplete() {
-        return graphics_family.has_value();
+        return graphics_family.has_value() && present_family.has_value();
     }
 };
 
@@ -35,6 +37,8 @@ private:
     bool isSuitableDevice(VkPhysicalDevice physical_device);
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
     void createLogicalDevice();
+    void createSurface();
+    std::string TriangleApplication::getPhysicalDeviceName(VkPhysicalDevice device);
 
 private:
     GLFWwindow* window_ = nullptr;
@@ -43,4 +47,5 @@ private:
     VkDevice device_ = VK_NULL_HANDLE;
     VkQueue graphics_queue_ = VK_NULL_HANDLE;
     VkSurfaceKHR surface_ = VK_NULL_HANDLE;
+    VkQueue present_queue_ = VK_NULL_HANDLE;
 };

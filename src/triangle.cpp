@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <vector>
 #include <thread>
+#include <set>
 
 inline static const std::vector<const char*> validation_layers = {
     "VK_LAYER_KHRONOS_validation"
@@ -21,6 +22,7 @@ inline static const std::vector<const char*> validation_layers = {
 TriangleApplication::~TriangleApplication()
 {
     vkDestroyDevice(device_, nullptr);
+    vkDestroySurfaceKHR(instance_, surface_, nullptr);
     vkDestroyInstance(instance_, nullptr);
     glfwDestroyWindow(window_);
     glfwTerminate();
@@ -53,6 +55,7 @@ void TriangleApplication::initVulkan()
 {
     enumExtensions();
     createInstance();
+    createSurface();
     pickPhysicalDevice();
     createLogicalDevice();
 }
@@ -103,6 +106,7 @@ void TriangleApplication::createInstance()
         std::cerr << "error: " << res << std::endl;
         throw std::runtime_error("Failed to create VK instance!");
     }
+    std::cout << "Instance created" << std::endl;
 }
 
 void TriangleApplication::mainLoop() 
@@ -153,6 +157,14 @@ void TriangleApplication::pickPhysicalDevice()
     if (physical_device_ == VK_NULL_HANDLE) {
         throw std::runtime_error("failed to find a suitable GPU!");
     }
+    std::cout << "Picked physical device: " << getPhysicalDeviceName(physical_device_) << std::endl;
+}
+
+std::string TriangleApplication::getPhysicalDeviceName(VkPhysicalDevice device)
+{
+    VkPhysicalDeviceProperties device_props;
+    vkGetPhysicalDeviceProperties(device, &device_props);
+    return std::string{ device_props.deviceName };
 }
 
 bool TriangleApplication::isSuitableDevice(VkPhysicalDevice physical_device)
@@ -178,6 +190,11 @@ QueueFamilyIndices TriangleApplication::findQueueFamilies(VkPhysicalDevice devic
         if (prop.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
             indices.graphics_family = i;
         }
+        VkBool32 present_support{false};
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface_, &present_support);
+        if (present_support) {
+            indices.present_family = i;
+        }
         if (indices.isComplete()) {
             break;
         }
@@ -189,19 +206,26 @@ QueueFamilyIndices TriangleApplication::findQueueFamilies(VkPhysicalDevice devic
 void TriangleApplication::createLogicalDevice() 
 {
     auto indices = findQueueFamilies(physical_device_);
-    VkDeviceQueueCreateInfo queue_create_info{};
-    queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queue_create_info.queueCount = 1;
-    queue_create_info.queueFamilyIndex = indices.graphics_family.value();
-    float queue_prioriy = 1.0f;
-    queue_create_info.pQueuePriorities = &queue_prioriy;
+    std::vector<VkDeviceQueueCreateInfo> queue_create_infos{};
+    std::set<uint32_t> unique_queue_families = {
+        indices.graphics_family.value(), indices.present_family.value()
+    };
+    for (const auto& queue_family: unique_queue_families) {
+        VkDeviceQueueCreateInfo queue_create_info{};
+        queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queue_create_info.queueCount = 1;
+        queue_create_info.queueFamilyIndex = queue_family;
+        float queue_prioriy = 1.0f;
+        queue_create_info.pQueuePriorities = &queue_prioriy;
+        queue_create_infos.push_back(std::move(queue_create_info));
+    }
 
     VkPhysicalDeviceFeatures feats{};
 
     VkDeviceCreateInfo device_create_info{};
     device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    device_create_info.pQueueCreateInfos = &queue_create_info;
-    device_create_info.queueCreateInfoCount = 1;
+    device_create_info.pQueueCreateInfos = queue_create_infos.data();
+    device_create_info.queueCreateInfoCount = static_cast<uint32_t>(queue_create_infos.size());
     device_create_info.pEnabledFeatures = &feats;
     device_create_info.enabledExtensionCount = 0;
 
@@ -209,5 +233,15 @@ void TriangleApplication::createLogicalDevice()
     if (res != VK_SUCCESS) {
         throw std::runtime_error("Failed to create device, error: " + std::to_string(res));
     }
-        vkGetDeviceQueue(device_, indices.graphics_family.value(), 0, &graphics_queue_);
+    vkGetDeviceQueue(device_, indices.graphics_family.value(), 0, &graphics_queue_);
+    vkGetDeviceQueue(device_, indices.present_family.value(), 0, &present_queue_);
+}
+
+void TriangleApplication::createSurface()
+{
+    VkResult res = glfwCreateWindowSurface(instance_, window_, nullptr, &surface_);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to create window surface, error: " + std::to_string(res));
+    }
+    std::cout << "Surface created" << std::endl;
 }
