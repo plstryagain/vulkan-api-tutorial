@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <cstdlib>
 #include <vector>
+#include <thread>
 
 inline static const std::vector<const char*> validation_layers = {
     "VK_LAYER_KHRONOS_validation"
@@ -19,6 +20,7 @@ inline static const std::vector<const char*> validation_layers = {
 
 TriangleApplication::~TriangleApplication()
 {
+    vkDestroyDevice(device_, nullptr);
     vkDestroyInstance(instance_, nullptr);
     glfwDestroyWindow(window_);
     glfwTerminate();
@@ -79,7 +81,7 @@ void TriangleApplication::createInstance()
     app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     app_info.pEngineName = "No Engine";
     app_info.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    app_info.apiVersion = VK_API_VERSION_1_0;
+    app_info.apiVersion = VK_API_VERSION_1_3;
 
     VkInstanceCreateInfo create_info{};
     create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -107,6 +109,7 @@ void TriangleApplication::mainLoop()
 {
     while (!glfwWindowShouldClose(window_)) {
         glfwPollEvents();
+        std::this_thread::sleep_for(std::chrono::milliseconds(33));
     }
 }
 
@@ -206,4 +209,5 @@ void TriangleApplication::createLogicalDevice()
     if (res != VK_SUCCESS) {
         throw std::runtime_error("Failed to create device, error: " + std::to_string(res));
     }
+        vkGetDeviceQueue(device_, indices.graphics_family.value(), 0, &graphics_queue_);
 }
