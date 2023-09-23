@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <optional>
 #include <string>
+#include <vector>
 
 struct QueueFamilyIndices
 {
@@ -16,6 +17,13 @@ struct QueueFamilyIndices
     bool isComplete() {
         return graphics_family.has_value() && present_family.has_value();
     }
+};
+
+struct SwapChainSupportDetails
+{
+    VkSurfaceCapabilitiesKHR capabilities;
+    std::vector<VkSurfaceFormatKHR> formats;
+    std::vector<VkPresentModeKHR> present_modes;
 };
 
 class TriangleApplication {
@@ -35,17 +43,27 @@ private:
     bool checkValidationLayerSupport();
     void pickPhysicalDevice();
     bool isSuitableDevice(VkPhysicalDevice physical_device);
+    bool isDeviceExtensionSupport(VkPhysicalDevice device);
     QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
-    void createLogicalDevice();
     void createSurface();
-    std::string TriangleApplication::getPhysicalDeviceName(VkPhysicalDevice device);
+    void createLogicalDevice();
+    void createSwapChain();
+    std::string getPhysicalDeviceName(VkPhysicalDevice device);
+    SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
+    VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& available_formats);
+    VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& available_present_modes);
+    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
 private:
     GLFWwindow* window_ = nullptr;
-    VkInstance instance_;
+    VkInstance instance_ = VK_NULL_HANDLE;
     VkPhysicalDevice physical_device_ = VK_NULL_HANDLE;
     VkDevice device_ = VK_NULL_HANDLE;
     VkQueue graphics_queue_ = VK_NULL_HANDLE;
     VkSurfaceKHR surface_ = VK_NULL_HANDLE;
     VkQueue present_queue_ = VK_NULL_HANDLE;
+    VkSwapchainKHR swap_chain_ = VK_NULL_HANDLE;
+    std::vector<VkImage> swap_chain_images_;
+    VkFormat swap_chain_image_format_;
+    VkExtent2D swap_chain_extent_;
 };
