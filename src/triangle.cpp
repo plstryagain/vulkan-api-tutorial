@@ -1,5 +1,5 @@
 #include "triangle.h"
-
+#include "utils.h"
 
 
 #include <iostream>
@@ -10,6 +10,7 @@
 #include <set>
 #include <limits>
 #include <algorithm>
+#include <array>
 
 inline static const std::vector<const char*> validation_layers = {
     "VK_LAYER_KHRONOS_validation"
@@ -70,6 +71,7 @@ void TriangleApplication::initVulkan()
     createLogicalDevice();
     createSwapChain();
     createImageViews();
+    createGraphicsPipeline();
 }
 
 void TriangleApplication::enumExtensions() 
@@ -357,6 +359,35 @@ void TriangleApplication::createImageViews()
     }
 }
 
+void TriangleApplication::createGraphicsPipeline()
+{
+#ifdef _WIN32
+    auto vert = utils::readFile("shaders\\vert.spv");
+    std::cout << "vert size: " << vert.size() << std::endl;
+    auto frag = utils::readFile("shaders\\frag.spv");
+    std::cout << "vert size: " << frag.size() << std::endl;
+#endif
+    VkShaderModule vert_shader_module = createShaderModule(vert);
+    VkShaderModule frag_shader_module = createShaderModule(frag);
+
+    VkPipelineShaderStageCreateInfo vert_stage_info{};
+    vert_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vert_stage_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vert_stage_info.module = vert_shader_module;
+    vert_stage_info.pName = "main";
+
+    VkPipelineShaderStageCreateInfo frag_stage_info{};
+    vert_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vert_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    vert_stage_info.module = frag_shader_module;
+    vert_stage_info.pName = "main";
+
+    std::array<VkPipelineShaderStageCreateInfo, 2> shader_stages = {vert_stage_info, frag_stage_info};
+
+    vkDestroyShaderModule(device_, vert_shader_module, nullptr);
+    vkDestroyShaderModule(device_, frag_shader_module, nullptr);
+}
+
 SwapChainSupportDetails TriangleApplication::querySwapChainSupport(VkPhysicalDevice device)
 {
     SwapChainSupportDetails details{};
@@ -414,4 +445,18 @@ VkExtent2D TriangleApplication::chooseSwapExtent(const VkSurfaceCapabilitiesKHR&
         actual_extent.height = std::clamp(actual_extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
         return actual_extent;
     }
+}
+
+VkShaderModule TriangleApplication::createShaderModule(const std::vector<char> &code)
+{
+    VkShaderModuleCreateInfo create_info{};
+    create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    create_info.codeSize = code.size();
+    create_info.pCode = reinterpret_cast<const uint32_t*>(code.data());
+    VkShaderModule shader_module;
+    VkResult res = vkCreateShaderModule(device_, &create_info, nullptr, &shader_module);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to create shader module, error: " + std::to_string(res));
+    }
+    return shader_module;
 }

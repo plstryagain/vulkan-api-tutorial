@@ -1,4 +1,8 @@
-add_executable(${PROJECT_NAME} main.cpp triangle.cpp)
+add_executable(${PROJECT_NAME} main.cpp triangle.cpp utils.cpp)
+
+add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
+    COMMAND ${CMAKE_SOURCE_DIR}/shaders/compile_win.bat
+)
 
 if (WIN32)
     target_link_directories(${PROJECT_NAME} PUBLIC "$ENV{VULKAN_SDK}/Lib/" "$ENV{GLFW_ROOT}/lib-vc2022")
