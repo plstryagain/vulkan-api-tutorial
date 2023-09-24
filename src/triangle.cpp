@@ -27,6 +27,9 @@ inline static const std::vector<const char*> device_extensions = {
 
 TriangleApplication::~TriangleApplication()
 {
+    for (auto image_view: swap_chain_image_views_) {
+        vkDestroyImageView(device_, image_view, nullptr);
+    }
     vkDestroySwapchainKHR(device_, swap_chain_, nullptr);
     vkDestroyDevice(device_, nullptr);
     vkDestroySurfaceKHR(instance_, surface_, nullptr);
@@ -66,6 +69,7 @@ void TriangleApplication::initVulkan()
     pickPhysicalDevice();
     createLogicalDevice();
     createSwapChain();
+    createImageViews();
 }
 
 void TriangleApplication::enumExtensions() 
@@ -323,6 +327,34 @@ void TriangleApplication::createSurface()
         throw std::runtime_error("failed to create window surface, error: " + std::to_string(res));
     }
     std::cout << "Surface created" << std::endl;
+}
+
+void TriangleApplication::createImageViews()
+{
+    swap_chain_image_views_.reserve(swap_chain_images_.size());
+    for (auto& image: swap_chain_images_) {
+        VkImageViewCreateInfo create_info{};
+        create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        create_info.image = image;
+        create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        create_info.format = swap_chain_image_format_;
+        create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+        create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        create_info.subresourceRange.baseMipLevel = 0;
+        create_info.subresourceRange.levelCount = 1;
+        create_info.subresourceRange.baseArrayLayer = 0;
+        create_info.subresourceRange.layerCount = 1;
+        VkImageView view = VK_NULL_HANDLE;
+        VkResult res = vkCreateImageView(device_, &create_info, nullptr, &view);
+        if (res != VK_SUCCESS) {
+            throw std::runtime_error("failed to create image views, error: " + std::to_string(res));
+        }
+        swap_chain_image_views_.push_back(std::move(view));
+        std::cout << "ImageView created" << std::endl;
+    }
 }
 
 SwapChainSupportDetails TriangleApplication::querySwapChainSupport(VkPhysicalDevice device)
