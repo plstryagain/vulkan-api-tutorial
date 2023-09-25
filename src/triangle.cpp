@@ -389,6 +389,68 @@ void TriangleApplication::createGraphicsPipeline()
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shader_stages = {vert_stage_info, frag_stage_info};
 
+    std::vector<VkDynamicState> dynamic_states = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR
+    };
+    VkPipelineDynamicStateCreateInfo dynamic_state_info{};
+    dynamic_state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamic_state_info.dynamicStateCount = static_cast<uint32_t>(dynamic_states.size());
+    dynamic_state_info.pDynamicStates = dynamic_states.data();
+    
+    VkPipelineVertexInputStateCreateInfo vertex_input_state_info{};
+    vertex_input_state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertex_input_state_info.vertexBindingDescriptionCount = 0;
+    vertex_input_state_info.pVertexBindingDescriptions = nullptr;
+    vertex_input_state_info.vertexAttributeDescriptionCount = 0;
+    vertex_input_state_info.pVertexAttributeDescriptions = nullptr;
+
+    VkPipelineInputAssemblyStateCreateInfo input_assembly_state_info{};
+    input_assembly_state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    input_assembly_state_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    input_assembly_state_info.primitiveRestartEnable = VK_FALSE;
+
+    VkViewport view_port{};
+    view_port.x = 0.0f;
+    view_port.y = 0.0f;
+    view_port.height = static_cast<float>(swap_chain_extent_.height);
+    view_port.width = static_cast<float>(swap_chain_extent_.width);
+    view_port.minDepth = 0.0f;
+    view_port.maxDepth = 1.0f;
+
+    VkRect2D scissor{};
+    scissor.extent = swap_chain_extent_;
+    scissor.offset = {0, 0};
+
+    VkPipelineViewportStateCreateInfo viewport_state_info{};
+    viewport_state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewport_state_info.scissorCount = 1;
+    viewport_state_info.pScissors = &scissor;
+    viewport_state_info.viewportCount = 1;
+    viewport_state_info.pViewports = &view_port;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer_info{};
+    rasterizer_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer_info.depthClampEnable = VK_FALSE;
+    rasterizer_info.rasterizerDiscardEnable = VK_FALSE;
+    rasterizer_info.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer_info.lineWidth = 1.0f;
+    rasterizer_info.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterizer_info.depthBiasEnable = VK_FALSE;
+    rasterizer_info.depthBiasClamp = 0.0f;
+    rasterizer_info.depthBiasConstantFactor = 0.0f;
+    rasterizer_info.depthBiasSlopeFactor = 0.0f;
+
+    VkPipelineMultisampleStateCreateInfo multisample_state_info{};
+    multisample_state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisample_state_info.sampleShadingEnable = VK_FALSE;
+    multisample_state_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisample_state_info.minSampleShading = 1.0f;
+    multisample_state_info.pSampleMask = nullptr;
+    multisample_state_info.alphaToCoverageEnable = VK_FALSE;
+    multisample_state_info.alphaToOneEnable = VK_FALSE;
+
     vkDestroyShaderModule(device_, vert_shader_module, nullptr);
     vkDestroyShaderModule(device_, frag_shader_module, nullptr);
 }
