@@ -361,10 +361,15 @@ void TriangleApplication::createImageViews()
 
 void TriangleApplication::createGraphicsPipeline()
 {
-#ifdef _WIN32
+#if defined(_WIN32)
     auto vert = utils::readFile("shaders\\vert.spv");
     std::cout << "vert size: " << vert.size() << std::endl;
     auto frag = utils::readFile("shaders\\frag.spv");
+    std::cout << "vert size: " << frag.size() << std::endl;
+#elif defined(__linux__)
+    auto vert = utils::readFile("shaders/vert.spv");
+    std::cout << "vert size: " << vert.size() << std::endl;
+    auto frag = utils::readFile("shaders/frag.spv");
     std::cout << "vert size: " << frag.size() << std::endl;
 #endif
     VkShaderModule vert_shader_module = createShaderModule(vert);
