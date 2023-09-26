@@ -50,6 +50,7 @@ private:
     void createLogicalDevice();
     void createSwapChain();
     void createImageViews();
+    void createRenderPass();
     void createGraphicsPipeline();
     std::string getPhysicalDeviceName(VkPhysicalDevice device);
     SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
