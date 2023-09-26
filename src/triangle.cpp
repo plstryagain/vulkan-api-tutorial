@@ -6,6 +6,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <cstdlib>
+#include <string>
 #include <vector>
 #include <thread>
 #include <set>
@@ -29,6 +30,7 @@ inline static const std::vector<const char*> device_extensions = {
 
 TriangleApplication::~TriangleApplication()
 {
+    vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
     for (auto image_view: swap_chain_image_views_) {
         vkDestroyImageView(device_, image_view, nullptr);
     }
@@ -453,6 +455,39 @@ void TriangleApplication::createGraphicsPipeline()
     multisample_state_info.alphaToOneEnable = VK_FALSE;
 
     VkPipelineColorBlendAttachmentState color_blend_attachment{};
+    color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    color_blend_attachment.blendEnable = VK_FALSE;
+    color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    color_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+    color_blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+    color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    color_blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+    VkPipelineColorBlendStateCreateInfo color_blend_info{};
+    color_blend_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    color_blend_info.logicOpEnable = VK_FALSE;
+    color_blend_info.logicOp = VK_LOGIC_OP_COPY;
+    color_blend_info.attachmentCount = 1;
+    color_blend_info.pAttachments = &color_blend_attachment;
+    color_blend_info.blendConstants[0] = 0.0f;
+    color_blend_info.blendConstants[1] = 0.0f;
+    color_blend_info.blendConstants[2] = 0.0f;
+    color_blend_info.blendConstants[3] = 0.0f;
+
+    VkPipelineLayoutCreateInfo pipeline_layout_info{};
+    pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipeline_layout_info.setLayoutCount = 0;
+    pipeline_layout_info.pSetLayouts = nullptr;
+    pipeline_layout_info.pushConstantRangeCount = 0;
+    pipeline_layout_info.pPushConstantRanges = nullptr;
+
+    VkResult res = vkCreatePipelineLayout(device_, &pipeline_layout_info, nullptr, &pipeline_layout_);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to create pipeline layout, error: " + std::to_string(res));
+    }
+
+    std::cout << "Pipeline layout created" << std::endl;
 
     vkDestroyShaderModule(device_, vert_shader_module, nullptr);
     vkDestroyShaderModule(device_, frag_shader_module, nullptr);
