@@ -1,5 +1,6 @@
 #include "triangle.h"
 #include "utils.h"
+#include "vulkan/vulkan_core.h"
 
 
 #include <iostream>
@@ -450,6 +451,8 @@ void TriangleApplication::createGraphicsPipeline()
     multisample_state_info.pSampleMask = nullptr;
     multisample_state_info.alphaToCoverageEnable = VK_FALSE;
     multisample_state_info.alphaToOneEnable = VK_FALSE;
+
+    VkPipelineColorBlendAttachmentState color_blend_attachment{};
 
     vkDestroyShaderModule(device_, vert_shader_module, nullptr);
     vkDestroyShaderModule(device_, frag_shader_module, nullptr);
