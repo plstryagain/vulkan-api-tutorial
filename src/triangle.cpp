@@ -3,6 +3,7 @@
 #include "vulkan/vulkan_core.h"
 
 
+#include <cstddef>
 #include <iostream>
 #include <stdexcept>
 #include <cstdlib>
@@ -30,7 +31,9 @@ inline static const std::vector<const char*> device_extensions = {
 
 TriangleApplication::~TriangleApplication()
 {
+    vkDestroyPipeline(device_, graphics_pipeline_, nullptr);
     vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
+    vkDestroyRenderPass(device_, render_pass_, nullptr);
     for (auto image_view: swap_chain_image_views_) {
         vkDestroyImageView(device_, image_view, nullptr);
     }
@@ -383,6 +386,19 @@ void TriangleApplication::createRenderPass()
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &color_attachment_ref;
+
+    VkRenderPassCreateInfo render_pass_info{};
+    render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    render_pass_info.attachmentCount = 1;
+    render_pass_info.pAttachments = &color_attachment;
+    render_pass_info.subpassCount = 1;
+    render_pass_info.pSubpasses = &subpass;
+
+    VkResult res = vkCreateRenderPass(device_, &render_pass_info, nullptr, &render_pass_);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to create render pass, error: " + std::to_string(res));
+    }
+    std::cout << "RenderPass created" << std::endl;
 }
 
 void TriangleApplication::createGraphicsPipeline()
@@ -413,7 +429,10 @@ void TriangleApplication::createGraphicsPipeline()
     vert_stage_info.module = frag_shader_module;
     vert_stage_info.pName = "main";
 
-    std::array<VkPipelineShaderStageCreateInfo, 2> shader_stages = {vert_stage_info, frag_stage_info};
+    std::array<VkPipelineShaderStageCreateInfo, 2> shader_stages = {
+        vert_stage_info, 
+        frag_stage_info
+    };
 
     std::vector<VkDynamicState> dynamic_states = {
         VK_DYNAMIC_STATE_VIEWPORT,
@@ -511,6 +530,33 @@ void TriangleApplication::createGraphicsPipeline()
     }
 
     std::cout << "Pipeline layout created" << std::endl;
+
+    VkGraphicsPipelineCreateInfo pipeline_info{};
+    pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipeline_info.stageCount = 2;
+    pipeline_info.pStages = shader_stages.data();
+
+    pipeline_info.pVertexInputState = &vertex_input_state_info;
+    pipeline_info.pInputAssemblyState = &input_assembly_state_info;
+    pipeline_info.pViewportState = &viewport_state_info;
+    pipeline_info.pRasterizationState = &rasterizer_info;
+    pipeline_info.pMultisampleState = &multisample_state_info;
+    pipeline_info.pDepthStencilState = nullptr;
+    pipeline_info.pColorBlendState = &color_blend_info;
+    pipeline_info.pDynamicState = &dynamic_state_info;
+
+    pipeline_info.layout = pipeline_layout_;
+    pipeline_info.renderPass = render_pass_;
+    pipeline_info.subpass = 0;
+    pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
+    pipeline_info.basePipelineIndex = -1;
+
+    res = vkCreateGraphicsPipelines(device_, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &graphics_pipeline_);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to create graphics pipeline, error: " + std::to_string(res));
+    }
+
+    std::cout << "Pipeline created" << std::endl;
 
     vkDestroyShaderModule(device_, vert_shader_module, nullptr);
     vkDestroyShaderModule(device_, frag_shader_module, nullptr);
