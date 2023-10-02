@@ -31,6 +31,9 @@ inline static const std::vector<const char*> device_extensions = {
 
 TriangleApplication::~TriangleApplication()
 {
+    for (auto framebuffer: swap_chain_framebuffers_) {
+        vkDestroyFramebuffer(device_, framebuffer, nullptr);
+    }
     vkDestroyPipeline(device_, graphics_pipeline_, nullptr);
     vkDestroyPipelineLayout(device_, pipeline_layout_, nullptr);
     vkDestroyRenderPass(device_, render_pass_, nullptr);
@@ -79,6 +82,7 @@ void TriangleApplication::initVulkan()
     createImageViews();
     createRenderPass();
     createGraphicsPipeline();
+    createFramebuffers();
 }
 
 void TriangleApplication::enumExtensions() 
@@ -424,10 +428,10 @@ void TriangleApplication::createGraphicsPipeline()
     vert_stage_info.pName = "main";
 
     VkPipelineShaderStageCreateInfo frag_stage_info{};
-    vert_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    vert_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    vert_stage_info.module = frag_shader_module;
-    vert_stage_info.pName = "main";
+    frag_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    frag_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    frag_stage_info.module = frag_shader_module;
+    frag_stage_info.pName = "main";
 
     std::array<VkPipelineShaderStageCreateInfo, 2> shader_stages = {
         vert_stage_info, 
@@ -560,6 +564,32 @@ void TriangleApplication::createGraphicsPipeline()
 
     vkDestroyShaderModule(device_, vert_shader_module, nullptr);
     vkDestroyShaderModule(device_, frag_shader_module, nullptr);
+}
+
+void TriangleApplication::createFramebuffers()
+{
+    swap_chain_framebuffers_.resize(swap_chain_image_views_.size());
+
+    for (size_t i = 0; i < swap_chain_image_views_.size(); i++) {
+        VkImageView attachments[] = {
+            swap_chain_image_views_[i]
+        };
+
+        VkFramebufferCreateInfo create_info{};
+        create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        create_info.renderPass = render_pass_;
+        create_info.attachmentCount = 1;
+        create_info.pAttachments = attachments;
+        create_info.width = swap_chain_extent_.width;
+        create_info.height = swap_chain_extent_.height;
+        create_info.layers = 1;
+
+        VkResult res = vkCreateFramebuffer(device_, &create_info, nullptr, swap_chain_framebuffers_.data());
+        if (res != VK_SUCCESS) {
+            throw std::runtime_error("failed to create framebuffer, error: " + std::to_string(res));
+        }
+    }
+    std::cout << "Framebuffers created" << std::endl;
 }
 
 SwapChainSupportDetails TriangleApplication::querySwapChainSupport(VkPhysicalDevice device)
