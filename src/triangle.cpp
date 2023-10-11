@@ -31,6 +31,7 @@ inline static const std::vector<const char*> device_extensions = {
 
 TriangleApplication::~TriangleApplication()
 {
+    vkDestroyCommandPool(device_, command_pool_, nullptr);
     for (auto framebuffer: swap_chain_framebuffers_) {
         vkDestroyFramebuffer(device_, framebuffer, nullptr);
     }
@@ -83,6 +84,8 @@ void TriangleApplication::initVulkan()
     createRenderPass();
     createGraphicsPipeline();
     createFramebuffers();
+    createCommandPool();
+    createCommandBuffer();
 }
 
 void TriangleApplication::enumExtensions() 
@@ -590,6 +593,90 @@ void TriangleApplication::createFramebuffers()
         }
     }
     std::cout << "Framebuffers created" << std::endl;
+}
+
+void TriangleApplication::createCommandPool()
+{
+    QueueFamilyIndices queue_family_indices = findQueueFamilies(physical_device_);
+    VkCommandPoolCreateInfo create_info{};
+    create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    create_info.queueFamilyIndex = queue_family_indices.graphics_family.value();
+
+    VkResult res = vkCreateCommandPool(device_, &create_info, nullptr, &command_pool_);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to create command pool, error: " + std::to_string(res));
+    } 
+    std::cout << "Command pool created" << std::endl;
+}
+
+void TriangleApplication::createCommandBuffer()
+{
+    VkCommandBufferAllocateInfo alloc_info{};
+    alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    alloc_info.commandPool = command_pool_;
+    alloc_info.commandBufferCount = 1;
+    alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
+    VkResult res = vkAllocateCommandBuffers(device_, &alloc_info, &command_buffer_);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to allocate command buffers, error: " + std::to_string(res));
+    }
+    std::cout << "Command buffer created" << std::endl;
+}
+
+void TriangleApplication::recordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index)
+{
+    VkCommandBufferBeginInfo begin_info{};
+    begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = 0;
+    begin_info.pInheritanceInfo = nullptr;
+
+    VkResult res = vkBeginCommandBuffer(command_buffer, &begin_info);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to begin recording command buffer, error: " + std::to_string(res));
+    }
+    std::cout << "Command buffer record begin" << std::endl;
+
+    VkRenderPassBeginInfo rp_begin_info{};
+    rp_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    rp_begin_info.renderPass = render_pass_;
+    rp_begin_info.framebuffer = swap_chain_framebuffers_[image_index];
+    rp_begin_info.renderArea.offset = {0, 0};
+    rp_begin_info.renderArea.extent = swap_chain_extent_;
+
+    VkClearValue color_value = {
+        {
+            { 0.0f, 0.0f, 0.0f, 1.0f }
+        }
+    };
+    rp_begin_info.clearValueCount = 1;
+    rp_begin_info.pClearValues = &color_value;
+
+    vkCmdBeginRenderPass(command_buffer, &rp_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline_);
+
+    VkViewport view_port{};
+    view_port.x = 0.0f;
+    view_port.y = 0.0f;
+    view_port.width = static_cast<float>(swap_chain_extent_.width);
+    view_port.height = static_cast<float>(swap_chain_extent_.height);
+    view_port.minDepth = 0.0f;
+    view_port.maxDepth = 1.0f;
+    vkCmdSetViewport(command_buffer, 0, 1, &view_port);
+
+    VkRect2D scissor{};
+    scissor.extent = swap_chain_extent_;
+    scissor.offset = {0, 0};
+    vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+    vkCmdDraw(command_buffer, 3, 1, 0, 0);
+    vkCmdEndRenderPass(command_buffer);
+
+    res = vkEndCommandBuffer(command_buffer);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to record command buffer, error: " + std::to_string(res));
+    }
+    std::cout << "Command buffer recorded" << std::endl;
 }
 
 SwapChainSupportDetails TriangleApplication::querySwapChainSupport(VkPhysicalDevice device)
