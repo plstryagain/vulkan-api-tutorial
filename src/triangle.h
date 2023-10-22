@@ -42,6 +42,7 @@ private:
     void enumExtensions();
     void createInstance();
     void mainLoop();
+    void drawFrame();
     bool checkValidationLayerSupport();
     void pickPhysicalDevice();
     bool isSuitableDevice(VkPhysicalDevice physical_device);
@@ -56,6 +57,7 @@ private:
     void createFramebuffers();
     void createCommandPool();
     void createCommandBuffer();
+    void createSyncObjects();
     void recordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index);
     std::string getPhysicalDeviceName(VkPhysicalDevice device);
     SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
@@ -83,4 +85,7 @@ private:
     std::vector<VkFramebuffer> swap_chain_framebuffers_;
     VkCommandPool command_pool_ = VK_NULL_HANDLE;
     VkCommandBuffer command_buffer_ = VK_NULL_HANDLE;
+    VkSemaphore semaphore_image_available_;
+    VkSemaphore semaphore_render_finished_;
+    VkFence fence_in_flight_;
 };

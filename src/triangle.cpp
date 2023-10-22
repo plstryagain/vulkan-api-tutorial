@@ -7,6 +7,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <cstdlib>
+#include <stdint.h>
 #include <string>
 #include <vector>
 #include <thread>
@@ -31,6 +32,9 @@ inline static const std::vector<const char*> device_extensions = {
 
 TriangleApplication::~TriangleApplication()
 {
+    vkDestroySemaphore(device_, semaphore_image_available_, nullptr);
+    vkDestroySemaphore(device_, semaphore_render_finished_, nullptr);
+    vkDestroyFence(device_, fence_in_flight_, nullptr);
     vkDestroyCommandPool(device_, command_pool_, nullptr);
     for (auto framebuffer: swap_chain_framebuffers_) {
         vkDestroyFramebuffer(device_, framebuffer, nullptr);
@@ -86,6 +90,7 @@ void TriangleApplication::initVulkan()
     createFramebuffers();
     createCommandPool();
     createCommandBuffer();
+    createSyncObjects();
 }
 
 void TriangleApplication::enumExtensions() 
@@ -141,8 +146,76 @@ void TriangleApplication::mainLoop()
 {
     while (!glfwWindowShouldClose(window_)) {
         glfwPollEvents();
+        drawFrame();
         std::this_thread::sleep_for(std::chrono::milliseconds(33));
     }
+}
+
+void TriangleApplication::drawFrame()
+{
+    VkResult res =  vkWaitForFences(device_, 1, &fence_in_flight_, VK_TRUE, UINT64_MAX);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to wait for fences, error: " + std::to_string(res));
+    }
+    vkResetFences(device_, 1, &fence_in_flight_);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to reset fences, error: " + std::to_string(res));
+    }
+
+    uint32_t image_index = 0;
+    vkAcquireNextImageKHR(device_, swap_chain_, UINT64_MAX, semaphore_image_available_, VK_NULL_HANDLE, &image_index);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to acquire next image, error: " + std::to_string(res));
+    }
+    res = vkResetCommandBuffer(command_buffer_, 0);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to reset command buffer, error: " + std::to_string(res));
+    }
+    recordCommandBuffer(command_buffer_, image_index);
+
+    VkSubmitInfo submit_info{};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+    VkSemaphore wait_semaphores[] = {
+        semaphore_image_available_
+    };
+    VkPipelineStageFlags wait_stages[] = {
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+    };
+    submit_info.waitSemaphoreCount = 1;
+    submit_info.pWaitSemaphores = wait_semaphores;
+    submit_info.pWaitDstStageMask = wait_stages;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &command_buffer_;
+
+    VkSemaphore signal_semaphores[] = {
+        semaphore_render_finished_
+    };
+    submit_info.signalSemaphoreCount = 1;
+    submit_info.pSignalSemaphores = signal_semaphores;
+
+    res = vkQueueSubmit(graphics_queue_, 1, &submit_info, fence_in_flight_);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to submit draw command buffer, error: " + std::to_string(res));
+    }
+
+    VkPresentInfoKHR present_info{};
+    present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    present_info.waitSemaphoreCount = 1;
+    present_info.pWaitSemaphores = signal_semaphores;
+
+    VkSwapchainKHR swap_chains[] = {
+        swap_chain_
+    };
+    present_info.swapchainCount = 1;
+    present_info.pSwapchains = swap_chains;
+    present_info.pImageIndices = &image_index;
+    present_info.pResults = nullptr;
+
+    res = vkQueuePresentKHR(present_queue_, &present_info);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to queue present, error: " + std::to_string(res));
+    }    
 }
 
 bool TriangleApplication::checkValidationLayerSupport()
@@ -348,10 +421,10 @@ void TriangleApplication::createSurface()
 void TriangleApplication::createImageViews()
 {
     swap_chain_image_views_.reserve(swap_chain_images_.size());
-    for (auto& image: swap_chain_images_) {
+    for (size_t i = 0; i < swap_chain_images_.size(); ++i) {
         VkImageViewCreateInfo create_info{};
         create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        create_info.image = image;
+        create_info.image = swap_chain_images_[i];
         create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
         create_info.format = swap_chain_image_format_;
         create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -394,12 +467,24 @@ void TriangleApplication::createRenderPass()
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &color_attachment_ref;
 
+    VkSubpassDependency dependency{};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
     VkRenderPassCreateInfo render_pass_info{};
     render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     render_pass_info.attachmentCount = 1;
     render_pass_info.pAttachments = &color_attachment;
     render_pass_info.subpassCount = 1;
     render_pass_info.pSubpasses = &subpass;
+    render_pass_info.dependencyCount = 1;
+    render_pass_info.pDependencies = &dependency;
+
+
 
     VkResult res = vkCreateRenderPass(device_, &render_pass_info, nullptr, &render_pass_);
     if (res != VK_SUCCESS) {
@@ -587,7 +672,7 @@ void TriangleApplication::createFramebuffers()
         create_info.height = swap_chain_extent_.height;
         create_info.layers = 1;
 
-        VkResult res = vkCreateFramebuffer(device_, &create_info, nullptr, swap_chain_framebuffers_.data());
+        VkResult res = vkCreateFramebuffer(device_, &create_info, nullptr, &swap_chain_framebuffers_[i]);
         if (res != VK_SUCCESS) {
             throw std::runtime_error("failed to create framebuffer, error: " + std::to_string(res));
         }
@@ -623,6 +708,29 @@ void TriangleApplication::createCommandBuffer()
         throw std::runtime_error("failed to allocate command buffers, error: " + std::to_string(res));
     }
     std::cout << "Command buffer created" << std::endl;
+}
+
+void TriangleApplication::createSyncObjects()
+{
+    VkSemaphoreCreateInfo semaphore_info{};
+    semaphore_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkFenceCreateInfo fence_info{};
+    fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fence_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    VkResult res = vkCreateSemaphore(device_, &semaphore_info, nullptr, &semaphore_image_available_);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to create image_available semaphore, error: " + std::to_string(res));
+    }
+    res = vkCreateSemaphore(device_, &semaphore_info, nullptr, &semaphore_render_finished_);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to create render_finished semaphore, error: " + std::to_string(res));
+    }
+    res = vkCreateFence(device_, &fence_info, nullptr, &fence_in_flight_);
+    if (res != VK_SUCCESS) {
+        throw std::runtime_error("failed to create in_flight fence, error: " + std::to_string(res));
+    }
 }
 
 void TriangleApplication::recordCommandBuffer(VkCommandBuffer command_buffer, uint32_t image_index)
